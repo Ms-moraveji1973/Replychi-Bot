@@ -9,16 +9,16 @@ import asyncio
 
 load_dotenv()
 
-proxy = {
+'''proxy = {
     'proxy_type': 'socks5',
     'addr': '127.0.0.1',
     'port': 9052,
-}
+}'''
 api_id = os.getenv('api_id')
 api_hash = os.getenv('api_hash')
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-client = TelegramClient('bot', api_id, api_hash,proxy=proxy).start(bot_token=BOT_TOKEN)
+client = TelegramClient('bot', api_id, api_hash).start(bot_token=BOT_TOKEN)
 @client.on(events.NewMessage())
 async def main(event):
     try :
