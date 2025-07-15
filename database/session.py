@@ -1,8 +1,11 @@
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 import contextlib
 from .models import Base
-
-DATABASE_URL = "postgresql+asyncpg://mohammads:mohammad@localhost:5432/userinfo"
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_async_engine(DATABASE_URL, echo=True)
 
 async def create_db_tables():
