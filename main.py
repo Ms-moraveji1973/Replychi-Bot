@@ -23,12 +23,10 @@ client = TelegramClient('bot', api_id, api_hash).start(bot_token=BOT_TOKEN)
 async def main(event):
     try :
         sender = await event.get_sender()
-        chat_id = event.chat_id
-        print(f"------------------------------chat_id: {chat_id}---------------------")
-        if sender and chat_id:
+       # print(f"------------------------------chat_id: {chat_id}---------------------")
+        if sender:
             async with get_db() as session:
-                result = await session.execute(select(TelegramUser).where(TelegramUser.id==sender.id,
-                                                                          TelegramUser.group_id==chat_id))
+                result = await session.execute(select(TelegramUser).where(TelegramUser.id==sender.id ))
                 user = result.scalars().first()
                 if not user :
                     print('we have no user')
@@ -38,8 +36,7 @@ async def main(event):
                         last_name=sender.last_name,
                         username=sender.username,
                         total_replies_received = 0,
-                        total_replies_sent = 0,
-                        group_id=chat_id ,
+                        total_replies_sent = 0,                    
                     )
                     session.add(new_user)
                     await session.commit()
@@ -56,8 +53,8 @@ async def main(event):
                 reply_sender_id = sender.id
                 reply_message_id = reply_message.sender_id
                 if reply_sender_id != reply_message_id:
-                    result_replied_to_user = await session.execute(select(TelegramUser).where(TelegramUser.id==reply_message_id,
-                                                                                              TelegramUser.group_id==chat_id))
+                    result_replied_to_user = await session.execute(select(TelegramUser).where(TelegramUser.id==reply_message_id
+                                                                                              ))
                     replied_to_user = result_replied_to_user.scalars().first()
                     if not replied_to_user :
                         new_user = TelegramUser(
@@ -67,7 +64,6 @@ async def main(event):
                             username=reply_message.sender.username,
                             total_replies_received=0,
                             total_replies_sent=0,
-                            group_id=chat_id ,
                         )
                         session.add(new_user)
                         await session.commit()
@@ -75,8 +71,7 @@ async def main(event):
                         print('The reply_user has been created-----------------')
 
                     result_reply_relations = await session.execute(select(ReplyRelationship)
-                                            .where(ReplyRelationship.group_id == chat_id,
-                                        ReplyRelationship.replier_id == reply_sender_id ,
+                                            .where(ReplyRelationship.replier_id == reply_sender_id ,
                                                     ReplyRelationship.replied_to_id == reply_message_id ))
                     get_result_reply_relations=result_reply_relations.scalars().first()
                     if not get_result_reply_relations :
@@ -84,7 +79,6 @@ async def main(event):
                                 replier_id=reply_sender_id,
                                 replied_to_id=reply_message_id,
                                 reply_count=1,
-                                group_id=chat_id,
                             )
                         session.add(new_result_reply_relation)
                         print("New reply relationship created /")
@@ -94,8 +88,8 @@ async def main(event):
 
 
 
-                    await session.execute(update(TelegramUser).where(TelegramUser.id==reply_sender_id,TelegramUser.group_id==chat_id).values(total_replies_sent=TelegramUser.total_replies_sent+1))
-                    await session.execute(update(TelegramUser).where(TelegramUser.id==reply_message_id,TelegramUser.group_id==chat_id).values(total_replies_received=TelegramUser.total_replies_received+1))
+                    await session.execute(update(TelegramUser).where(TelegramUser.id==reply_sender_id).values(total_replies_sent=TelegramUser.total_replies_sent+1))
+                    await session.execute(update(TelegramUser).where(TelegramUser.id==reply_message_id).values(total_replies_received=TelegramUser.total_replies_received+1))
                     await session.commit()
 
                     print("Reply counts updated successfully in DB.")
