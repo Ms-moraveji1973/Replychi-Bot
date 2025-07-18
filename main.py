@@ -9,11 +9,11 @@ import asyncio
 
 load_dotenv()
 
-'''proxy = {
+proxy = {
     'proxy_type': 'socks5',
-    'addr': '127.0.0.1',
+    'addr': 'host.docker.internal',
     'port': 9052,
-} '''
+}
 api_id = os.getenv('api_id')
 api_hash = os.getenv('api_hash')
 BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -59,7 +59,7 @@ async def create_or_get_group(session,group_id,sender_id):
 
 
 
-client = TelegramClient('bot', api_id, api_hash).start(bot_token=BOT_TOKEN)
+client = TelegramClient('bot', api_id, api_hash,proxy=proxy).start(bot_token=BOT_TOKEN)
 @client.on(events.NewMessage())
 async def new_message(event):
     sender_user = await event.get_sender()
@@ -111,14 +111,11 @@ async def new_message(event):
                     await session.execute(update(TelegramUser).where(TelegramUser.id==replied_user.id).values(total_replies_received=TelegramUser.total_replies_received+1))
                     await session.commit()
 
-                    # --- BEGIN: Logging the confirmed state after commit ---
-                    # Refresh objects to get the latest data from the database
                     await session.refresh(user)  # Refreshes sender's TelegramUser
                     await session.refresh(replied_user)  # Refreshes replied-to's TelegramUser
 
-                    # Determine which ReplyRelationship object to refresh (newly created or existing)
                     current_reply_relation = get_result_reply_relations if get_result_reply_relations else new_result_reply_relation
-                    await session.refresh(current_reply_relation)  # Refreshes the ReplyRelationship
+                    await session.refresh(current_reply_relation)
 
                     print("\n--- Reply Tracking Summary (Confirmed in DB) ---")
                     print(
@@ -127,7 +124,7 @@ async def new_message(event):
                         f"  Replied To: {replied_user.first_name} (@{replied_user.username if replied_user.username else 'N/A'}) [ID: {replied_user.id}]")
                     print(f"  Group Chat ID: {user_group_id}")
                     print(f"  Replies from Replier to Replied-To in this group: {current_reply_relation.reply_count}")
-                    print(f"  Total Replies SENT by {user.first_name}: {user.total_replies_sent}")
+                    print(f"  Total Replies SENT by {user.first_name}@{user.username}: {user.total_replies_sent}")
                     print(
                         f"  Total Replies RECEIVED by {replied_user.first_name}: {replied_user.total_replies_received}")
                     print("--------------------------------------------------\n")
