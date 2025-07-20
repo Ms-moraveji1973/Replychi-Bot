@@ -1,10 +1,12 @@
 import os
-from telethon import TelegramClient,events
+from telethon import TelegramClient,events , Button
 from database.session import get_db
 from database.models import  TelegramUser , GroupMemberShipRelation ,ReplyRelationship
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy import update
 from dotenv import load_dotenv
+import logging
 import asyncio
 
 load_dotenv()
@@ -17,6 +19,7 @@ proxy = {
 api_id = os.getenv('api_id')
 api_hash = os.getenv('api_hash')
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 
 async def create_or_get_user(session,user_info):
         result = await session.execute(select(TelegramUser).where(TelegramUser.id == user_info.id))
@@ -35,7 +38,8 @@ async def create_or_get_user(session,user_info):
             await session.commit()
             await session.refresh(new_user)
             print(f"--------- New user created: {new_user.username or new_user.first_name} (ID: {new_user.id}) --------")
-            return new_user
+            user = new_user
+            return user
         else:
             print(f"Reply_Send:{user.total_replies_sent}")
             print(f"Reply_Recive:{user.total_replies_received}")
@@ -132,6 +136,121 @@ async def new_message(event):
                     print("------- This isn't Reply to Other Person ---------")
             else :
                 print("-------- can not find reply ---------")
+
+# communicate user  with bot
+
+@client.on(events.NewMessage(pattern='/start'))
+async def start_handler(event):
+    sender_user_to_bot = await event.get_sender()
+    async with get_db() as session:
+        user_bot = await create_or_get_user(session,sender_user_to_bot)
+
+    user_db_username = user_bot.username
+    print(f"---------- username :{user_db_username}")
+    buttons = [
+        Button.inline('راهنما!', b'guide'),
+        Button.inline('اطلاعات من', b'information'),
+        Button.inline('گروه های من', b'groups')
+    ]
+    await event.respond('یکی رو انتخاب کن رفیق',buttons=buttons)
+
+@client.on(events.CallbackQuery(pattern=b'guide'))
+async def handler(event):
+    await event.answer('به بخش راهنمای خوش اومدید این بخش قراره به زودی اپدیت بشه')
+
+
+@client.on(events.CallbackQuery(pattern=b'information'))
+async def handler_inf(event):
+    user = await event.get_sender()
+    await event.respond(f'اسم شما: {user.first_name}\nیوزرنیم: @{user.username}')
+
+
+
+@client.on(events.CallbackQuery(pattern=b'groups'))
+async def show_user_groups(event):
+    async with get_db() as session:
+        sender_user_to_bot = await event.get_sender()
+        user_bot = await create_or_get_user(session, sender_user_to_bot)
+        user_groups = await session.execute(select(GroupMemberShipRelation.group_id).where(GroupMemberShipRelation.user_id == user_bot.id))
+
+        group_ids = list(set(g_id for g_id in user_groups.scalars().all()))
+        buttons = [ [Button.inline(f"گروه {user_group}", f"groupinfo_{user_group}".encode())]
+                    for user_group in group_ids
+                    ]
+        print(buttons)
+
+        await event.respond("یکی از گروه‌ها رو انتخاب کن:", buttons=buttons)
+
+@client.on(events.CallbackQuery(pattern=b'groupinfo_'))
+async def group_info(event):
+    user_to_bot = await event.get_sender()
+    user_data_to_bot = event.data.decode('utf-8')
+    print(f"---------- user_data_to_bot :{user_data_to_bot}")
+
+    group_id = int(user_data_to_bot.split('_')[1])
+    print(f"------------- group_id:{group_id}")
+
+    async with get_db() as session:
+        result = await session.execute(
+            select(GroupMemberShipRelation).options(
+
+                # load replier data
+                selectinload(GroupMemberShipRelation.sent_replies_through_membership)
+                .selectinload(ReplyRelationship.replied_user)
+                .selectinload(GroupMemberShipRelation.user),
+
+                # load replied data
+                selectinload(GroupMemberShipRelation.receive_replies_through_membership)
+                .selectinload(ReplyRelationship.replier_user)
+                .selectinload(GroupMemberShipRelation.user)
+            ).where(
+                GroupMemberShipRelation.group_id == group_id,
+                GroupMemberShipRelation.user_id == user_to_bot.id
+            )
+        )
+        get_group_user = result.scalar_one_or_none()
+
+        if not get_group_user:
+            await event.respond("اطلاعاتی یافت نشد.(:")
+            return
+
+        message = await group_reply_list(get_group_user)
+
+        await event.respond(message)
+
+async def group_reply_list(get_group_user):
+    text = "📊 ریپلای‌های شما در گروه:\n\n"
+    sent_replies = get_group_user.sent_replies_through_membership
+    if not sent_replies:
+        return "📭 هیچ ریپلایی در این گروه ثبت نشده."
+
+
+    for i, reply in enumerate(sent_replies, start=1):
+        receiver_user = reply.replied_user.user
+        username = receiver_user.username or 'یوزرنیم نداره مگه میشه ×-×'
+        name = receiver_user.first_name or 'نام نداره دهن سرویس'
+        count = reply.reply_count
+        text += f"{i}. {name} ({username}) - {count} بار\n"
+
+
+    text += "\n" + "="*20 + "\n\n"
+    reveive_replies = get_group_user.receive_replies_through_membership
+    text += "📥 **ریپلای‌هایی که شما دریافت کردید:**\n\n"
+    if not reveive_replies:
+        text += " موردی یافت نشد.\n"
+
+    for i, reply in enumerate(reveive_replies, start=1):
+        receiver_user = reply.replier_user.user
+        username = receiver_user.username or 'یوزرنیم نداره مگه میشه ×-×'
+        name = receiver_user.first_name or 'نام نداره دهن سرویس'
+        count = reply.reply_count
+        text += f"{i}. {name} ({username}) - {count} بار\n"
+
+    return text
+
+
+
+
 
 def main():
     print("Connecting to Telegram...")
