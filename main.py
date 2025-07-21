@@ -6,7 +6,6 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy import update
 from dotenv import load_dotenv
-import logging
 import re
 import asyncio
 
@@ -17,10 +16,12 @@ proxy = {
     'addr': 'host.docker.internal',
     'port': 9052,
 }
+
+
 api_id = os.getenv('api_id')
 api_hash = os.getenv('api_hash')
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+
 
 async def create_or_get_user(session,user_info):
         result = await session.execute(select(TelegramUser).where(TelegramUser.id == user_info.id))
@@ -140,11 +141,9 @@ async def new_message(event):
 
 # communicate user  with bot
 main_menu_buttons = [
-        Button.inline('راهنما!', b'guide'),
-        Button.inline('اطلاعات من', b'information'),
-        Button.inline('گروه های من', b'groups'),
-        Button.inline('جستجوی شناسه در گروه', b'search_user_in_group')
-    ]
+    [Button.inline('📘 راهنما!', b'guide'), Button.inline('👤 اطلاعات من', b'information')],
+    [Button.inline('👥 گروه‌هام', b'groups'), Button.inline('🔍 جستجوی کاربر در گروه', b'search_user_in_group')],
+]
 
 
 @client.on(events.NewMessage(pattern='/start'))
@@ -159,24 +158,20 @@ async def start_handler(event):
 
 async def get_guide():
     guide_message = (
-        "✨ **راهنمای جامع ربات هوشمند شما!** ✨\n"
-        "〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n\n"
-        "👋 سلام رفیق! من اینجا هستم تا اطلاعات گروهی شما رو مدیریت و نمایش بدم.\n"
-        "با من می‌تونی آمار ریپلای‌ها و فعالیت‌های گروهی خودت رو به راحتی ببینی.\n\n"
-        "👇 **قابلیت‌های اصلی:** 👇\n\n"
-        "1️⃣  **آمار و گزارش‌های دقیق 📊**\n"
-        "    •  ببین به کی ریپلای دادی و چند بار!\n"
-        "    •  بفهم از کی ریپلای گرفتی و چند بار!\n"
-        "    •  این آمار برای هر گروهی که من توش عضوم قابل دسترسه.\n\n"
-        "2️⃣  **دسترسی آسان به اطلاعات 👤**\n"
-        "    •  با یک کلیک، اطلاعات کاربری خودت رو دریافت کن.\n"
-        "    •  یوزرنیم و اسم خودت رو نمایش میدم.\n\n"
-        "3️⃣  **مدیریت گروه‌های شما 🏘️**\n"
-        "    •  تمام گروه‌هایی که عضو هستی و من هم توشون حضور دارم رو لیست می‌کنم.\n"
-        "    •  با انتخاب هر گروه، وارد بخش گزارشات اون گروه میشی.\n\n"
-        "💡 **چطور شروع کنم؟**\n"
-        "    •  فقط کافیه روی دکمه‌های زیر همین پیام کلیک کنی و قابلیت مورد نظرت رو انتخاب کنی!\n"
-        "    •  اگر سوالی داشتی یا نیاز به کمک بیشتر بود، کافیه پیام بدی!"
+        "📘 **راهنمای ربات**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "سلام! این ربات برای این ساخته شده که آمار دقیق و مفیدی از فعالیت‌هات توی گروه‌ها بهت بده.\n"
+        "اینجا می‌تونی ببینی به چه کسانی ریپلای دادی، از کی‌ها جواب گرفتی و حتی فعالیت بقیه رو هم بررسی کنی.\n\n"
+
+        "🔧 **قابلیت‌های ربات:**\n"
+        "1️⃣ نمایش ریپلای‌هایی که دادی و گرفتی، با تعداد و جزئیات.\n"
+        "2️⃣ مشاهده اطلاعات کاربری خودت، مثل اسم و یوزرنیم.\n"
+        "3️⃣ لیست گروه‌هایی که توشون عضو هستی و من هم حضور دارم.\n"
+        "4️⃣ جستجوی یوزرنیم دیگران برای دیدن آمارشون توی گروه‌های مشترک.\n\n"
+
+        "🟢 **چطور استفاده کنم؟**\n"
+        "کافیه از دکمه‌های پایین استفاده کنی و گزینه مورد نظرت رو انتخاب کنی.\n"
+        "همه چیز ساده و قابل دسترس طراحی شده، فقط امتحانش کن.\n\n"
     )
     return guide_message
 
@@ -206,10 +201,12 @@ async def show_user_groups(event):
         user_groups = await session.execute(select(GroupMemberShipRelation.group_id).where(GroupMemberShipRelation.user_id == user_bot.id))
 
         group_ids = list(set(g_id for g_id in user_groups.scalars().all()))
-        buttons = [ [Button.inline(f"گروه {user_group}", f"groupinfo_{user_group}".encode())]
-                    for user_group in group_ids
-                    ]
 
+        buttons = [
+            [Button.inline(f"📍 {getattr(await client.get_entity(group_id), 'title', f'گروه {group_id}')}",
+                           f"groupinfo_{group_id}".encode())]
+            for group_id in group_ids
+        ]
         await event.respond("یکی از گروه‌ها رو انتخاب کن:", buttons=buttons)
 
 @client.on(events.CallbackQuery(pattern=b'groupinfo_'))
@@ -248,15 +245,17 @@ async def group_info(event):
 
         await event.respond(message)
 
+
 @client.on(events.CallbackQuery(pattern=b'search_user_in_group'))
 async def search_username(event):
-    await event.respond('یوزرنیم یا شناسه کاربری رو که میخوای رو بفرست رفیق')
+    await event.respond('یوزرنیم یا آیدی کاربری رو که میخوای رو بفرست رفیق')
 
 
-@client.on(events.NewMessage())
+@client.on(events.NewMessage(pattern=r'^@\w+'))
 async def get_username(event):
     sender_user_to_bot = await event.get_sender()
     username = event.raw_text.strip().lstrip('@')
+    await event.respond('آیدی دریافت شد | در حال پردازشیم')
     async with get_db() as session:
         result = await session.execute(select(TelegramUser).where(TelegramUser.username == username))
         get_user_db = result.scalars().first()
@@ -273,15 +272,22 @@ async def get_username(event):
             group_ids = list(user_group_ids & sender_group_ids)
 
             print(f"--------------------- group {group_ids}")
-            if not group_ids:
-                await event.respond('هیچ گروه مشترکی نداری رفیق')
+            if not group_ids or not user_group_ids :
+                await event.respond('هیچ گروه مشترکی ندارید رفیق | حیف ):')
+                return
 
-            buttons = [ [Button.inline(f"گروه {user_group}", f"find_user_group_{user_group}_{get_user_db.id}".encode())]
-                        for user_group in group_ids
-                        ]
+            buttons = []
+            for group_id in group_ids:
+                group_entity = await client.get_entity(group_id)
+                group_title = getattr(group_entity, "title", f"گروه {group_id}")
+                buttons.append(
+                    [Button.inline(f"📍 {group_title}", f"find_user_group_{group_id}_{get_user_db.id}".encode())])
+
             print(f"button {buttons}")
-            await event.respond("یکی از گروه‌ها رو انتخاب کن(گروه های مشترک شما و شناسه مورد نظر):", buttons=buttons)
-
+            await event.respond("یکی از گروه‌ها رو انتخاب کن(گروه های مشترک شما و آیدی مورد نظر)  :", buttons=buttons)
+        else :
+            await event.respond('هیچ گروه مشترکی ندارید رفیق | حیف ):')
+            return
 
 @client.on(events.CallbackQuery(pattern=re.compile(b'^find_user_group_')))
 async def find_user_group(event):
@@ -320,33 +326,31 @@ async def find_user_group(event):
             await event.respond("اطلاعاتی یافت نشد.(:")
             return
 
-        message = await group_reply_list(get_group_user)
+        message = await user_group_reply(get_group_user)
 
         await event.respond(message)
 
 
-async def group_reply_list(get_group_user):
-    text = "📊 ریپلای‌های شما در گروه:\n\n"
+async def user_group_reply(get_group_user):
+    text = "📊 ریپلای‌هایی که کاربری که وارد کرده اید در گروه زده است:\n\n"
     sent_replies = get_group_user.sent_replies_through_membership
     if not sent_replies:
         text += "📭 هیچ ریپلایی در این گروه ثبت نشده."
 
-
     for i, reply in enumerate(sent_replies, start=1):
         receiver_user = reply.replied_user.user
         username = receiver_user.username or 'یوزرنیم نداره مگه میشه ×-×'
-        name = receiver_user.first_name or 'نام نداره دهن سرویس'
+        name = receiver_user.first_name or 'نام نداره '
         count = reply.reply_count
         text += f"{i}. {name} ({username}) - {count} بار\n"
 
-
-    text += "\n" + "="*20 + "\n\n"
-    reveive_replies = get_group_user.receive_replies_through_membership
-    text += "📥 **ریپلای‌هایی که شما دریافت کردید:**\n\n"
-    if not reveive_replies:
+    text += "\n" + "=" * 20 + "\n\n"
+    receive_replies = get_group_user.receive_replies_through_membership
+    text += "📥 **ریپلای‌هایی که یوزری که وارد کرده اید  دریافت کرده است:**\n\n"
+    if not receive_replies:
         text += " موردی یافت نشد.\n"
 
-    for i, reply in enumerate(reveive_replies, start=1):
+    for i, reply in enumerate(receive_replies, start=1):
         receiver_user = reply.replier_user.user
         username = receiver_user.username or 'یوزرنیم نداره مگه میشه ×-×'
         name = receiver_user.first_name or 'نام نداره دهن سرویس'
@@ -356,6 +360,55 @@ async def group_reply_list(get_group_user):
     return text
 
 
+async def group_reply_list(get_group_user):
+    text = "📊 ریپلای‌هایی که شما در گروه زده اید:\n\n"
+    sent_replies = get_group_user.sent_replies_through_membership
+    if not sent_replies:
+        text += "📭 هیچ ریپلایی در این گروه ثبت نشده."
+
+    for i, reply in enumerate(sent_replies, start=1):
+        receiver_user = reply.replied_user.user
+        username = receiver_user.username or 'یوزرنیم نداره مگه میشه ×-×'
+        name = receiver_user.first_name or 'نام نداره '
+        count = reply.reply_count
+        text += f"{i}. {name} ({username}) - {count} بار\n"
+
+    text += "\n" + "="*20 + "\n\n"
+    receive_replies = get_group_user.receive_replies_through_membership
+    text += "📥 **ریپلای‌هایی که شما دریافت کردید:**\n\n"
+    if not receive_replies:
+        text += " موردی یافت نشد.\n"
+
+    for i, reply in enumerate(receive_replies, start=1):
+        receiver_user = reply.replier_user.user
+        username = receiver_user.username or 'یوزرنیم نداره مگه میشه ×-×'
+        name = receiver_user.first_name or 'نام نداره دهن سرویس'
+        count = reply.reply_count
+        text += f"{i}. {name} ({username}) - {count} بار\n"
+
+    return text
+
+known_patterns = [
+    '/start',
+    '/guide',
+    '/information',
+    '/groups',
+    '/search_user_in_group'
+]
+
+@client.on(events.NewMessage())
+async def default_message_handler(event):
+    if not event.is_private:
+        return
+    text = event.raw_text.strip()
+    if any(text.startswith(pattern) for pattern in known_patterns):
+        return
+
+    if re.match(r'^@\w+', text):
+        return
+
+    if not event.out and not event.mentioned:
+        await event.respond("❓ متوجه منظورت نشدم!\nبرای راهنما دستور /guide رو بفرست.")
 
 
 
