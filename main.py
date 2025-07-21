@@ -148,6 +148,8 @@ main_menu_buttons = [
 
 @client.on(events.NewMessage(pattern='/start'))
 async def start_handler(event):
+    if not event.is_private:
+        return
     sender_user_to_bot = await event.get_sender()
     async with get_db() as session:
         user_bot = await create_or_get_user(session,sender_user_to_bot)
@@ -177,17 +179,23 @@ async def get_guide():
 
 @client.on(events.CallbackQuery(pattern=b'guide'))
 async def handler_gu(event):
+    if not event.is_private:
+        return
     guide = await get_guide()
     await event.edit(guide,buttons=main_menu_buttons)
 
 @client.on(events.NewMessage(pattern='/guide'))
 async def handler_gui(event):
+    if not event.is_private:
+        return
     guide = await get_guide()
     await event.respond(guide,buttons=main_menu_buttons)
 
 
 @client.on(events.CallbackQuery(pattern=b'information'))
 async def handler_inf(event):
+    if not event.is_private:
+        return
     user = await event.get_sender()
     await event.respond(f'اسم شما: {user.first_name}\nیوزرنیم: @{user.username}', buttons=main_menu_buttons)
 
@@ -195,6 +203,8 @@ async def handler_inf(event):
 
 @client.on(events.CallbackQuery(pattern=b'groups'))
 async def show_user_groups(event):
+    if not event.is_private:
+        return
     async with get_db() as session:
         sender_user_to_bot = await event.get_sender()
         user_bot = await create_or_get_user(session, sender_user_to_bot)
@@ -211,6 +221,8 @@ async def show_user_groups(event):
 
 @client.on(events.CallbackQuery(pattern=b'groupinfo_'))
 async def group_info(event):
+    if not event.is_private:
+        return
     user_to_bot = await event.get_sender()
     user_data_to_bot = event.data.decode('utf-8')
     print(user_data_to_bot)
@@ -248,11 +260,15 @@ async def group_info(event):
 
 @client.on(events.CallbackQuery(pattern=b'search_user_in_group'))
 async def search_username(event):
+    if not event.is_private:
+        return
     await event.respond('یوزرنیم یا آیدی کاربری رو که میخوای رو بفرست رفیق')
 
 
 @client.on(events.NewMessage(pattern=r'^@\w+'))
 async def get_username(event):
+    if not event.is_private:
+        return
     sender_user_to_bot = await event.get_sender()
     username = event.raw_text.strip().lstrip('@')
     await event.respond('آیدی دریافت شد | در حال پردازشیم')
@@ -291,6 +307,8 @@ async def get_username(event):
 
 @client.on(events.CallbackQuery(pattern=re.compile(b'^find_user_group_')))
 async def find_user_group(event):
+    if not event.is_private:
+        return
     user_data_to_bot = event.data.decode('utf-8')
     print(f"--------------- > user_data_to_bot : {user_data_to_bot}")
     parts = user_data_to_bot.split('_')
