@@ -164,6 +164,7 @@ cython_debug/
 .idea/
 *.session
 .git-replace-text.txt
+.DS_Store
 ### Python Patch ###
 # Poetry local configuration file - https://python-poetry.org/docs/configuration/#local-configuration
 poetry.toml
