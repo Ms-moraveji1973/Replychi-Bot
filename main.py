@@ -140,23 +140,11 @@ async def new_message(event):
                 print("-------- can not find reply ---------")
 
 # communicate user  with bot
+
 main_menu_buttons = [
     [Button.inline('📘 راهنما!', b'guide'), Button.inline('👤 اطلاعات من', b'information')],
     [Button.inline('👥 گروه‌هام', b'groups'), Button.inline('🔍 جستجوی کاربر در گروه', b'search_user_in_group')],
 ]
-
-
-@client.on(events.NewMessage(pattern='/start'))
-async def start_handler(event):
-    if not event.is_private:
-        return
-    sender_user_to_bot = await event.get_sender()
-    async with get_db() as session:
-        user_bot = await create_or_get_user(session,sender_user_to_bot)
-    user_db_username = user_bot.username
-    print(f"---------- username :{user_db_username}")
-    buttons = main_menu_buttons
-    await event.respond('یکی رو انتخاب کن رفیق',buttons=buttons)
 
 async def get_guide():
     guide_message = (
@@ -174,8 +162,39 @@ async def get_guide():
         "🟢 **چطور استفاده کنم؟**\n"
         "کافیه از دکمه‌های پایین استفاده کنی و گزینه مورد نظرت رو انتخاب کنی.\n"
         "همه چیز ساده و قابل دسترس طراحی شده، فقط امتحانش کن.\n\n"
+
+        "🎛️ **توضیح دکمه‌ها:**\n"
+        "🔍 **جستجوی کاربر در گروه:**\n"
+        "اگر با کسی توی یک گروه مشترک باشی، می‌تونی ببینی اون یوزر به کی ریپلای زده، چند بار زده، و اصلاً چقدر فعاله.\n"
+        "همچنین می‌تونی ببینی کی بیشتر از بقیه بهش ریپلای داده.\n\n"
+
+        "👥 **گروه های من:**\n"
+        "لیست گروه‌هایی که هم تو عضو هستی هم من. از اونجا می‌تونی گروه رو انتخاب کنی و بری سراغ آمارش.\n\n"
+
+        "👤 **اطلاعات من:**\n"
+        "نمایش اطلاعات پایه مثل اسم، یوزرنیم و ... (قراره به زودی این بخش هم اپدیت باحالی بشه منتظر باشید 😎).\n\n"
+
+        "📘 **راهنما:**\n"
+        "همین متنی که الان داری می‌خونی 😄 هر وقت گم شدی، برگرد اینجا.\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
     )
     return guide_message
+
+
+
+@client.on(events.NewMessage(pattern='/start'))
+async def start_handler(event):
+    if not event.is_private:
+        return
+    sender_user_to_bot = await event.get_sender()
+    async with get_db() as session:
+        user_bot = await create_or_get_user(session,sender_user_to_bot)
+    user_db_username = user_bot.username
+    giude_message = await get_guide()
+    print(f"---------- username :{user_db_username}")
+    buttons = main_menu_buttons
+    await event.respond(giude_message,buttons=buttons)
 
 @client.on(events.CallbackQuery(pattern=b'guide'))
 async def handler_gu(event):
@@ -211,6 +230,9 @@ async def show_user_groups(event):
         user_groups = await session.execute(select(GroupMemberShipRelation.group_id).where(GroupMemberShipRelation.user_id == user_bot.id))
 
         group_ids = list(set(g_id for g_id in user_groups.scalars().all()))
+
+        if len(group_ids) <= 1:
+            await event.respond("هنوز تو هیچ گروه مشترکی با من عضو نیستی.\n✔️ مطمئن شو که من داخل گروه هستم، دسترسی پیام دارم و بعد از شروع ربات یه پیام داخل گروه فرستادی.")
 
         buttons = [
             [Button.inline(f"📍 {getattr(await client.get_entity(group_id), 'title', f'گروه {group_id}')}",
