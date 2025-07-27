@@ -1,5 +1,7 @@
+import logging
 import os
 from telethon import TelegramClient,events , Button
+from telethon.errors import ChannelPrivateError, ChatAdminRequiredError
 from database.session import get_db
 from database.models import  TelegramUser , GroupMemberShipRelation ,ReplyRelationship
 from sqlalchemy.future import select
@@ -230,16 +232,29 @@ async def show_user_groups(event):
         user_groups = await session.execute(select(GroupMemberShipRelation.group_id).where(GroupMemberShipRelation.user_id == user_bot.id))
 
         group_ids = list(set(g_id for g_id in user_groups.scalars().all()))
+        print(f"-------------- Group ID : {group_ids} --------------")
 
         if len(group_ids) <= 1:
             await event.respond("هنوز تو هیچ گروه مشترکی با من عضو نیستی.\n✔️ مطمئن شو که من داخل گروه هستم، دسترسی پیام دارم و بعد از شروع ربات یه پیام داخل گروه فرستادی.")
 
-        buttons = [
-            [Button.inline(f"📍 {getattr(await client.get_entity(group_id), 'title', f'گروه {group_id}')}",
-                           f"groupinfo_{group_id}".encode())]
-            for group_id in group_ids
-        ]
-        await event.respond("یکی از گروه‌ها رو انتخاب کن:", buttons=buttons)
+        buttons = []
+        for group_id in group_ids:
+            try:
+                entity = await client.get_entity(group_id)
+                group_title = getattr(entity, 'title', f' گروه {group_id}')
+                button = [Button.inline(f"📍 {group_title}", f"groupinfo_{group_id}".encode())]
+                buttons.append(button)
+            except(ChannelPrivateError , ChatAdminRequiredError ,ValueError) as e :
+                logging.warning(f"------- Not found group {group_id} , {e} , We Skipped ------- ")
+                session.delete(group_id)
+                continue
+            except Exception as e:
+                logging.warning(f"------ Opsssss, unexpected error {e} -----")
+                continue
+        if not buttons:
+            await event.respond("هنوز تو هیچ گروه مشترکی با من عضو نیستی.\n✔️ مطمئن شو که من داخل گروه هستم، دسترسی پیام دارم و بعد از شروع ربات یه پیام داخل گروه فرستادی.")
+        else :
+            await event.respond("یکی از گروه‌ها رو انتخاب کن:", buttons=buttons)
 
 @client.on(events.CallbackQuery(pattern=b'groupinfo_'))
 async def group_info(event):
@@ -308,7 +323,6 @@ async def get_username(event):
 
 
             group_ids = list(user_group_ids & sender_group_ids)
-
             print(f"--------------------- group {group_ids}")
             if not group_ids or not user_group_ids :
                 await event.respond('هیچ گروه مشترکی ندارید رفیق | حیف ):')
